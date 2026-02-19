@@ -1,0 +1,9 @@
+services:
+  spa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: serviprof-spa
+    ports:
+      - '127.0.0.1:3007:80'
+    restart: unless-stopped
