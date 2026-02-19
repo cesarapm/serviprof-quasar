@@ -1,11 +1,21 @@
 import { defineBoot } from '#q-app/wrappers'
 import axios from 'axios'
 
+const productionApiBaseUrl = 'https://api.serviprofdigital.com.mx'
+const envApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+
 const defaultApiBaseUrl = import.meta.env.PROD
-  ? 'https://api.serviprofdigital.com.mx'
+  ? productionApiBaseUrl
   : typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:8000`
     : 'http://127.0.0.1:8000'
+
+const isLocalApiUrl = /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(
+  envApiBaseUrl,
+)
+
+const apiBaseUrl =
+  import.meta.env.PROD && isLocalApiUrl ? productionApiBaseUrl : envApiBaseUrl || defaultApiBaseUrl
 
 // Be careful when using SSR for cross-request state pollution
 // due to creating a Singleton instance here;
@@ -14,7 +24,7 @@ const defaultApiBaseUrl = import.meta.env.PROD
 // "export default () => {}" function below (which runs individually
 // for each client)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl,
+  baseURL: apiBaseUrl,
   withCredentials: true,
   withXSRFToken: true,
   xsrfCookieName: 'XSRF-TOKEN',
