@@ -1,8 +1,9 @@
 import { defineBoot } from '#q-app/wrappers'
 import axios from 'axios'
 
-const defaultApiBaseUrl =
-  typeof window !== 'undefined'
+const defaultApiBaseUrl = import.meta.env.PROD
+  ? 'https://api.serviprofdigital.com.mx'
+  : typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:8000`
     : 'http://127.0.0.1:8000'
 
