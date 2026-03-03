@@ -37,6 +37,17 @@
       <q-card-section>
         <q-form class="row q-col-gutter-md" @submit="onCreateConsumable">
           <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.type"
+              label="Tipo"
+              outlined
+              dense
+              :options="typeOptions"
+              :error="Boolean(fieldErrors.type)"
+              :error-message="fieldErrors.type"
+            />
+          </div>
+          <div class="col-12 col-md-4">
             <q-input
               v-model="form.name"
               label="Nombre"
@@ -44,6 +55,72 @@
               dense
               :error="Boolean(fieldErrors.name)"
               :error-message="fieldErrors.name"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-input
+              v-model="form.part_number"
+              label="No. parte"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.part_number)"
+              :error-message="fieldErrors.part_number"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-input
+              v-model="form.serial_number"
+              label="Serie"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.serial_number)"
+              :error-message="fieldErrors.serial_number"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-input
+              v-model="form.brand"
+              label="Marca"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.brand)"
+              :error-message="fieldErrors.brand"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-input
+              v-model="form.model"
+              label="Modelo"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.model)"
+              :error-message="fieldErrors.model"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.status"
+              label="Estado"
+              outlined
+              dense
+              use-input
+              fill-input
+              hide-selected
+              new-value-mode="add-unique"
+              :options="statusOptions"
+              :error="Boolean(fieldErrors.status)"
+              :error-message="fieldErrors.status"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.unit"
+              label="Unidad"
+              outlined
+              dense
+              :options="unitOptions"
+              :error="Boolean(fieldErrors.unit)"
+              :error-message="fieldErrors.unit"
             />
           </div>
           <div class="col-12 col-md-4">
@@ -100,6 +177,81 @@
               dense
               :error="Boolean(fieldErrors.supplier)"
               :error-message="fieldErrors.supplier"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.location_id"
+              label="Ubicación"
+              outlined
+              dense
+              use-input
+              fill-input
+              hide-selected
+              input-debounce="0"
+              option-label="label"
+              option-value="id"
+              emit-value
+              map-options
+              :options="locationOptions"
+              :loading="locationLoading"
+              @filter="filterLocations"
+              :error="Boolean(fieldErrors.location_id)"
+              :error-message="fieldErrors.location_id"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.personnel_id"
+              label="Personal"
+              outlined
+              dense
+              use-input
+              fill-input
+              hide-selected
+              input-debounce="0"
+              option-label="label"
+              option-value="id"
+              emit-value
+              map-options
+              :options="personnelOptions"
+              :loading="personnelLoading"
+              @filter="filterPersonnel"
+              :error="Boolean(fieldErrors.personnel_id)"
+              :error-message="fieldErrors.personnel_id"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-input
+              v-model="form.sub_location"
+              label="Sub ubicación"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.sub_location)"
+              :error-message="fieldErrors.sub_location"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.inventory_status"
+              label="Estado inventario"
+              outlined
+              dense
+              :options="inventoryStatusOptions"
+              :error="Boolean(fieldErrors.inventory_status)"
+              :error-message="fieldErrors.inventory_status"
+            />
+          </div>
+          <div class="col-12">
+            <q-input
+              v-model="form.notes"
+              type="textarea"
+              autogrow
+              label="Notas"
+              outlined
+              dense
+              :error="Boolean(fieldErrors.notes)"
+              :error-message="fieldErrors.notes"
             />
           </div>
           <div class="col-12 row justify-end q-gutter-sm">
@@ -164,6 +316,17 @@
         <q-card-section>
           <q-form class="row q-col-gutter-md" @submit="onUpdateConsumable">
             <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.type"
+                label="Tipo"
+                outlined
+                dense
+                :options="typeOptions"
+                :error="Boolean(editFieldErrors.type)"
+                :error-message="editFieldErrors.type"
+              />
+            </div>
+            <div class="col-12 col-md-6">
               <q-input
                 v-model="editForm.name"
                 label="Nombre"
@@ -171,6 +334,72 @@
                 dense
                 :error="Boolean(editFieldErrors.name)"
                 :error-message="editFieldErrors.name"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="editForm.part_number"
+                label="No. parte"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.part_number)"
+                :error-message="editFieldErrors.part_number"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="editForm.serial_number"
+                label="Serie"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.serial_number)"
+                :error-message="editFieldErrors.serial_number"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="editForm.brand"
+                label="Marca"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.brand)"
+                :error-message="editFieldErrors.brand"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="editForm.model"
+                label="Modelo"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.model)"
+                :error-message="editFieldErrors.model"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.status"
+                label="Estado"
+                outlined
+                dense
+                use-input
+                fill-input
+                hide-selected
+                new-value-mode="add-unique"
+                :options="statusOptions"
+                :error="Boolean(editFieldErrors.status)"
+                :error-message="editFieldErrors.status"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.unit"
+                label="Unidad"
+                outlined
+                dense
+                :options="unitOptions"
+                :error="Boolean(editFieldErrors.unit)"
+                :error-message="editFieldErrors.unit"
               />
             </div>
             <div class="col-12 col-md-6">
@@ -229,6 +458,81 @@
                 :error-message="editFieldErrors.supplier"
               />
             </div>
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.location_id"
+                label="Ubicación"
+                outlined
+                dense
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                option-label="label"
+                option-value="id"
+                emit-value
+                map-options
+                :options="locationOptions"
+                :loading="locationLoading"
+                @filter="filterLocations"
+                :error="Boolean(editFieldErrors.location_id)"
+                :error-message="editFieldErrors.location_id"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.personnel_id"
+                label="Personal"
+                outlined
+                dense
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                option-label="label"
+                option-value="id"
+                emit-value
+                map-options
+                :options="personnelOptions"
+                :loading="personnelLoading"
+                @filter="filterPersonnel"
+                :error="Boolean(editFieldErrors.personnel_id)"
+                :error-message="editFieldErrors.personnel_id"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="editForm.sub_location"
+                label="Sub ubicación"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.sub_location)"
+                :error-message="editFieldErrors.sub_location"
+              />
+            </div>
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="editForm.inventory_status"
+                label="Estado inventario"
+                outlined
+                dense
+                :options="inventoryStatusOptions"
+                :error="Boolean(editFieldErrors.inventory_status)"
+                :error-message="editFieldErrors.inventory_status"
+              />
+            </div>
+            <div class="col-12">
+              <q-input
+                v-model="editForm.notes"
+                type="textarea"
+                autogrow
+                label="Notas"
+                outlined
+                dense
+                :error="Boolean(editFieldErrors.notes)"
+                :error-message="editFieldErrors.notes"
+              />
+            </div>
             <div class="col-12 row justify-end q-gutter-sm">
               <q-btn flat no-caps color="grey-8" label="Cancelar" @click="closeEditDialog" />
               <q-btn type="submit" color="primary" no-caps label="Actualizar" :loading="saving" />
@@ -250,6 +554,8 @@ import {
   showConsumable,
   updateConsumable,
 } from 'src/services/consumables-service'
+import { listLocations } from 'src/services/locations-service'
+import { listPersonnel } from 'src/services/personnel-service'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -263,22 +569,61 @@ const editingConsumableId = ref(null)
 const deletingId = ref(null)
 const consumables = ref([])
 const showLowStockOnly = ref(false)
+const allLocations = ref([])
+const locationOptions = ref([])
+const locationLoading = ref(false)
+const allPersonnel = ref([])
+const personnelOptions = ref([])
+const personnelLoading = ref(false)
+
+const typeOptions = ['refaccion', 'tinta', 'toner', 'otras']
+const defaultStatusOptions = ['nuevo', 'usado', 'renta', 'reparacion']
+const unitOptions = ['pieza', 'caja', 'kit', 'litro', 'ml']
+const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
 
 const initialForm = () => ({
+  type: 'refaccion',
   name: '',
+  part_number: '',
+  serial_number: '',
+  brand: '',
+  model: '',
+  status: 'nuevo',
+  unit: 'pieza',
   stock_quantity: 0,
   minimum_stock: 0,
   stock_reserved: 0,
   batch: '',
   supplier: '',
+  location_id: '',
+  personnel_id: '',
+  sub_location: '',
+  inventory_status: 'disponible',
+  notes: '',
 })
 
 const form = ref(initialForm())
 const editForm = ref(initialForm())
 
+const statusOptions = computed(() => {
+  const dynamicStatuses = consumables.value
+    .map((item) => item?.status)
+    .filter((status) => typeof status === 'string' && status.trim() !== '')
+
+  return Array.from(new Set([...defaultStatusOptions, ...dynamicStatuses]))
+})
+
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left', sortable: true },
+  { name: 'type', label: 'Tipo', field: 'type', align: 'left', sortable: true },
   { name: 'name', label: 'Nombre', field: 'name', align: 'left', sortable: true },
+  {
+    name: 'part_number',
+    label: 'No. parte',
+    field: 'part_number',
+    align: 'left',
+    sortable: true,
+  },
   {
     name: 'stock_quantity',
     label: 'Cantidad',
@@ -307,6 +652,14 @@ const columns = [
     align: 'right',
     sortable: true,
   },
+  { name: 'unit', label: 'Unidad', field: 'unit', align: 'left', sortable: true },
+  {
+    name: 'inventory_status',
+    label: 'Inventario',
+    field: 'inventory_status',
+    align: 'left',
+    sortable: true,
+  },
   { name: 'batch', label: 'Lote', field: 'batch', align: 'left', sortable: true },
   { name: 'supplier', label: 'Proveedor', field: 'supplier', align: 'left', sortable: true },
   { name: 'actions', label: '', field: 'actions', align: 'right' },
@@ -315,7 +668,9 @@ const columns = [
 const rows = computed(() =>
   consumables.value.map((item) => ({
     id: item.id,
+    type: item.type ?? '-',
     name: item.name ?? '-',
+    part_number: item.part_number ?? '-',
     stock_quantity: Number(item.stock_quantity ?? 0),
     stock_reserved: Number(item.stock_reserved ?? 0),
     available: Math.max(Number(item.stock_quantity ?? 0) - Number(item.stock_reserved ?? 0), 0),
@@ -323,10 +678,76 @@ const rows = computed(() =>
       Number(item.stock_quantity ?? 0) - Number(item.stock_reserved ?? 0) <=
       Number(item.minimum_stock ?? 0),
     minimum_stock: Number(item.minimum_stock ?? 0),
+    unit: item.unit ?? '-',
+    inventory_status: item.inventory_status ?? '-',
     batch: item.batch ?? '-',
     supplier: item.supplier ?? '-',
   })),
 )
+
+async function loadLocations() {
+  locationLoading.value = true
+
+  try {
+    const data = await listLocations()
+    const locations = normalizePayload(data)
+
+    allLocations.value = locations.map((location) => ({
+      id: location.id,
+      label: `${location.name} (${location.type})`,
+    }))
+
+    locationOptions.value = allLocations.value
+  } finally {
+    locationLoading.value = false
+  }
+}
+
+function filterLocations(val, update) {
+  update(() => {
+    if (val === '') {
+      locationOptions.value = allLocations.value
+      return
+    }
+
+    const needle = val.toLowerCase()
+    locationOptions.value = allLocations.value.filter((option) =>
+      option.label.toLowerCase().includes(needle),
+    )
+  })
+}
+
+async function loadPersonnel() {
+  personnelLoading.value = true
+
+  try {
+    const data = await listPersonnel()
+    const personnel = normalizePayload(data)
+
+    allPersonnel.value = personnel.map((person) => ({
+      id: person.id,
+      label: `${person.name}${person.position ? ` (${person.position})` : ''}`,
+    }))
+
+    personnelOptions.value = allPersonnel.value
+  } finally {
+    personnelLoading.value = false
+  }
+}
+
+function filterPersonnel(val, update) {
+  update(() => {
+    if (val === '') {
+      personnelOptions.value = allPersonnel.value
+      return
+    }
+
+    const needle = val.toLowerCase()
+    personnelOptions.value = allPersonnel.value.filter((option) =>
+      option.label.toLowerCase().includes(needle),
+    )
+  })
+}
 
 const filteredRows = computed(() =>
   showLowStockOnly.value ? rows.value.filter((item) => item.low_stock) : rows.value,
@@ -368,12 +789,24 @@ function resetForm() {
 
 function buildConsumablePayload(values) {
   return {
+    type: values.type,
     name: values.name?.trim(),
+    part_number: values.part_number?.trim() || null,
+    serial_number: values.serial_number?.trim() || null,
+    brand: values.brand?.trim() || null,
+    model: values.model?.trim() || null,
+    status: values.status?.trim(),
+    unit: values.unit,
     stock_quantity: Number(values.stock_quantity ?? 0),
     minimum_stock: Number(values.minimum_stock ?? 0),
     stock_reserved: Number(values.stock_reserved ?? 0),
     batch: values.batch?.trim() || null,
     supplier: values.supplier?.trim() || null,
+    location_id: values.location_id ? Number(values.location_id) : null,
+    personnel_id: values.personnel_id ? Number(values.personnel_id) : null,
+    sub_location: values.sub_location?.trim() || null,
+    notes: values.notes?.trim() || null,
+    inventory_status: values.inventory_status,
   }
 }
 
@@ -392,12 +825,24 @@ function validateReservedStock(payload, targetErrors) {
 
 function setEditForm(item) {
   editForm.value = {
+    type: item.type ?? 'refaccion',
     name: item.name ?? '',
+    part_number: item.part_number ?? '',
+    serial_number: item.serial_number ?? '',
+    brand: item.brand ?? '',
+    model: item.model ?? '',
+    status: item.status ?? 'nuevo',
+    unit: item.unit ?? 'pieza',
     stock_quantity: Number(item.stock_quantity ?? 0),
     minimum_stock: Number(item.minimum_stock ?? 0),
     stock_reserved: Number(item.stock_reserved ?? 0),
     batch: item.batch ?? '',
     supplier: item.supplier ?? '',
+    location_id: item.location_id ?? '',
+    personnel_id: item.personnel_id ?? item.personal_id ?? item.personnel?.id ?? '',
+    sub_location: item.sub_location ?? '',
+    notes: item.notes ?? '',
+    inventory_status: item.inventory_status ?? 'disponible',
   }
 }
 
@@ -573,5 +1018,7 @@ async function onDeleteConsumable(id) {
   }
 }
 
-onMounted(loadConsumables)
+onMounted(async () => {
+  await Promise.all([loadConsumables(), loadLocations(), loadPersonnel()])
+})
 </script>

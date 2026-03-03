@@ -15,8 +15,9 @@ export async function showEquipmentMovement(id) {
   return data
 }
 
-export async function updateEquipmentMovement(id, payload) {
-  const { data } = await api.put(`/api/equipment-movements/${id}`, payload)
+export async function updateEquipmentMovement(id, payload, partial = true) {
+  const method = partial ? 'patch' : 'put'
+  const { data } = await api[method](`/api/equipment-movements/${id}`, payload)
   return data
 }
 

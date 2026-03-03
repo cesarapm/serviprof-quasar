@@ -21,7 +21,7 @@
       </q-card-section>
       <q-separator />
       <q-card-section>
-        <q-form class="row q-col-gutter-md" @submit="onCreateProduct">
+        <q-form ref="createFormRef" class="row q-col-gutter-md" @submit="onCreateProduct">
           <div class="col-12 col-md-4">
             <q-select
               v-model="form.type"
@@ -106,7 +106,7 @@
               :error-message="fieldErrors.status"
             />
           </div>
-          <div class="col-12 col-md-4">
+          <!-- <div class="col-12 col-md-4">
             <q-select
               v-model="form.inventory_status"
               label="Estado inventario"
@@ -116,7 +116,7 @@
               :error="Boolean(fieldErrors.inventory_status)"
               :error-message="fieldErrors.inventory_status"
             />
-          </div>
+          </div> -->
           <div class="col-12 col-md-4">
             <q-input
               v-model.number="form.current_counter_bw"
@@ -231,6 +231,27 @@
               @filter="filterLocations"
               :error="Boolean(fieldErrors.location_id)"
               :error-message="fieldErrors.location_id"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <q-select
+              v-model="form.personnel_id"
+              label="Personal"
+              outlined
+              dense
+              use-input
+              fill-input
+              hide-selected
+              input-debounce="0"
+              option-label="label"
+              option-value="id"
+              emit-value
+              map-options
+              :options="personnelOptions"
+              :loading="personnelLoading"
+              @filter="filterPersonnel"
+              :error="Boolean(fieldErrors.personnel_id)"
+              :error-message="fieldErrors.personnel_id"
             />
           </div>
           <div class="col-12 col-md-4">
@@ -401,7 +422,7 @@
                 :error-message="editFieldErrors.status"
               />
             </div>
-            <div class="col-12 col-md-4">
+            <!-- <div class="col-12 col-md-4">
               <q-select
                 v-model="editForm.inventory_status"
                 label="Estado inventario"
@@ -411,8 +432,8 @@
                 :error="Boolean(editFieldErrors.inventory_status)"
                 :error-message="editFieldErrors.inventory_status"
               />
-            </div>
-            <div class="col-12 col-md-4">
+            </div> -->
+            <!-- <div class="col-12 col-md-4">
               <q-input
                 v-model.number="editForm.current_counter_bw"
                 type="number"
@@ -446,7 +467,7 @@
                 :error="Boolean(editFieldErrors.counter_read_at)"
                 :error-message="editFieldErrors.counter_read_at"
               />
-            </div>
+            </div> -->
             <div class="col-12 col-md-4">
               <q-input
                 v-model.number="editForm.acquisition_cost"
@@ -507,7 +528,7 @@
                 :error-message="editFieldErrors.depreciation_amount"
               />
             </div>
-            <div class="col-12 col-md-4">
+            <!-- <div class="col-12 col-md-4">
               <q-select
                 v-model="editForm.location_id"
                 label="Ubicación"
@@ -528,6 +549,27 @@
                 :error-message="editFieldErrors.location_id"
               />
             </div>
+            <div class="col-12 col-md-4">
+              <q-select
+                v-model="editForm.personnel_id"
+                label="Personal"
+                outlined
+                dense
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                option-label="label"
+                option-value="id"
+                emit-value
+                map-options
+                :options="personnelOptions"
+                :loading="personnelLoading"
+                @filter="filterPersonnel"
+                :error="Boolean(editFieldErrors.personnel_id)"
+                :error-message="editFieldErrors.personnel_id"
+              />
+            </div> -->
             <div class="col-12 col-md-4">
               <q-input
                 v-model="editForm.entry_date"
@@ -571,6 +613,7 @@ import {
   updateProduct,
 } from 'src/services/products-service'
 import { listLocations } from 'src/services/locations-service'
+import { listPersonnel } from 'src/services/personnel-service'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -586,10 +629,13 @@ const originalEditPayload = ref(null)
 const allLocations = ref([])
 const locationOptions = ref([])
 const locationLoading = ref(false)
+const allPersonnel = ref([])
+const personnelOptions = ref([])
+const personnelLoading = ref(false)
 
 const typeOptions = ['copiadora', 'impresora']
 const statusOptions = ['nuevo', 'usado', 'renta', 'reparacion']
-const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
+// const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
 const classificationOptions = ['renta', 'venta', 'refaccion', 'demo', 'taller']
 const commercialConditionOptions = ['a1', 'a2', 'b', 'c']
 
@@ -612,12 +658,14 @@ const initialForm = () => ({
   book_value: null,
   depreciation_amount: null,
   location_id: '',
+  personnel_id: '',
   entry_date: '',
   notes: '',
 })
 
 const form = ref(initialForm())
 const editForm = ref(initialForm())
+const createFormRef = ref(null)
 
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left', sortable: true },
@@ -687,6 +735,23 @@ function normalizeNullableNumber(value) {
   return value === '' || value === null || value === undefined ? null : Number(value)
 }
 
+function normalizeDateForInput(value) {
+  if (!value) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value.slice(0, 10)
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
 function normalizePayload(data) {
   const candidates = [
     data,
@@ -732,6 +797,24 @@ async function loadLocations() {
   }
 }
 
+async function loadPersonnel() {
+  personnelLoading.value = true
+
+  try {
+    const data = await listPersonnel()
+    const personnel = normalizePayload(data)
+
+    allPersonnel.value = personnel.map((person) => ({
+      id: person.id,
+      label: `${person.name}${person.position ? ` (${person.position})` : ''}`,
+    }))
+
+    personnelOptions.value = allPersonnel.value
+  } finally {
+    personnelLoading.value = false
+  }
+}
+
 function filterLocations(val, update) {
   update(() => {
     if (val === '') {
@@ -741,6 +824,20 @@ function filterLocations(val, update) {
 
     const needle = val.toLowerCase()
     locationOptions.value = allLocations.value.filter((option) =>
+      option.label.toLowerCase().includes(needle),
+    )
+  })
+}
+
+function filterPersonnel(val, update) {
+  update(() => {
+    if (val === '') {
+      personnelOptions.value = allPersonnel.value
+      return
+    }
+
+    const needle = val.toLowerCase()
+    personnelOptions.value = allPersonnel.value.filter((option) =>
       option.label.toLowerCase().includes(needle),
     )
   })
@@ -787,8 +884,9 @@ function mapValidationErrors(error) {
 }
 
 function resetForm() {
-  form.value = initialForm()
+  Object.assign(form.value, initialForm())
   fieldErrors.value = {}
+  createFormRef.value?.resetValidation()
 }
 
 function buildPayload(values) {
@@ -804,6 +902,7 @@ function buildPayload(values) {
     book_value: normalizeNullableNumber(values.book_value),
     depreciation_amount: normalizeNullableNumber(values.depreciation_amount),
     location_id: values.location_id ? Number(values.location_id) : null,
+    personnel_id: values.personnel_id ? Number(values.personnel_id) : null,
     entry_date: values.entry_date || null,
     notes: values.notes?.trim() || null,
   }
@@ -832,20 +931,18 @@ function setEditFormFromProduct(product) {
     model: product.model ?? '',
     serial_number: product.serial_number ?? '',
     spd_internal_id: product.spd_internal_id ?? '',
-    current_counter_bw: product.current_counter_bw ?? null,
-    current_counter_color: product.current_counter_color ?? null,
-    counter_read_at: product.counter_read_at ?? '',
     status: product.status ?? 'nuevo',
     inventory_status: product.inventory_status ?? 'disponible',
     classification: product.classification ?? 'renta',
     commercial_condition: product.commercial_condition ?? 'a1',
     acquisition_cost: product.acquisition_cost ?? null,
     supplier: product.supplier ?? '',
-    acquisition_date: product.acquisition_date ?? '',
+    acquisition_date: normalizeDateForInput(product.acquisition_date),
     book_value: product.book_value ?? null,
     depreciation_amount: product.depreciation_amount ?? null,
     location_id: product.location_id ?? '',
-    entry_date: product.entry_date ?? '',
+    personnel_id: product.personnel_id ?? product.personal_id ?? product.personnel?.id ?? '',
+    entry_date: normalizeDateForInput(product.entry_date),
     notes: product.notes ?? '',
   }
 }
@@ -964,19 +1061,31 @@ async function onUpdateProduct() {
 }
 
 async function onDeleteProduct(id) {
+  errorMessage.value = ''
+  backendUnavailable.value = false
+
   try {
     await deleteProduct(id)
-    $q.notify({ type: 'positive', message: 'Producto eliminado.' })
+    $q.notify({ type: 'positive', message: 'Producto eliminado.', position: 'top', timeout: 2000 })
     await loadProducts()
   } catch (error) {
     backendUnavailable.value = !error?.response || error?.code === 'ERR_NETWORK'
+
+    const message =
+      error.response?.data?.message ||
+      (backendUnavailable.value
+        ? 'No hay conexión con el backend para eliminar el producto.'
+        : 'No fue posible eliminar el producto.')
+
+    $q.notify({ type: 'negative', message, position: 'top', timeout: 2500 })
+
     if (!backendUnavailable.value) {
-      errorMessage.value = error.response?.data?.message || 'No fue posible eliminar el producto.'
+      errorMessage.value = message
     }
   }
 }
 
 onMounted(async () => {
-  await Promise.all([loadProducts(), loadLocations()])
+  await Promise.all([loadProducts(), loadLocations(), loadPersonnel()])
 })
 </script>
