@@ -1,1 +1,106 @@
-/* app global css */
+/* =============================================
+   Serviprof CRM — Global Styles
+   ============================================= */
+
+/* --- Fondo global de página --- */
+.q-page {
+  background: #f1f5f9;
+}
+
+/* --- Cards: sombra y bordes más modernos --- */
+.q-card {
+  border-radius: 12px !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07) !important;
+  border: 1px solid #e2e8f0;
+}
+
+/* --- Separadores más suaves --- */
+.q-separator {
+  background: #e2e8f0 !important;
+}
+
+/* --- q-table: encabezados mejorados --- */
+.q-table thead tr th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.q-table tbody tr:hover td {
+  background: #f8fafc !important;
+}
+
+.q-table tbody tr td {
+  font-size: 13px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+/* --- Inputs outlined más elegantes --- */
+.q-field--outlined .q-field__control {
+  border-radius: 8px !important;
+}
+
+/* --- Banners info/warning/error más suaves --- */
+.q-banner {
+  border-radius: 10px !important;
+}
+
+/* --- Botones: bordes redondeados consistentes --- */
+.q-btn:not(.q-btn--round) {
+  border-radius: 8px !important;
+}
+
+/* --- q-badge --- */
+.q-badge {
+  border-radius: 6px !important;
+  font-size: 10px !important;
+}
+
+/* --- Scrollbar personalizado (Webkit) --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* --- Drawer scrollbar oscuro para sidebar --- */
+.spd-drawer ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.spd-drawer ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* --- Page title consistente --- */
+.spd-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* --- Chip de estado de inventario --- */
+.status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}

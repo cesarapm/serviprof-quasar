@@ -10,6 +10,11 @@ export async function createConsumableMovement(payload) {
   return data
 }
 
+export async function createConsumableMovementsBulk(payload) {
+  const { data } = await api.post('/api/consumable-movements/bulk', payload)
+  return data
+}
+
 export async function showConsumableMovement(id) {
   const { data } = await api.get(`/api/consumable-movements/${id}`)
   return data

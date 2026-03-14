@@ -1,8 +1,28 @@
 import { api } from 'boot/axios'
 
+const LOCATIONS_BACKOFF_MS = 120000
+let locationsBackoffUntil = 0
+
 export async function listLocations(params = {}) {
-  const { data } = await api.get('/api/locations', { params })
-  return data
+  if (Date.now() < locationsBackoffUntil) {
+    return []
+  }
+
+  try {
+    const { data } = await api.get('/api/locations', { params })
+    locationsBackoffUntil = 0
+    return data
+  } catch (error) {
+    const status = error?.response?.status
+    const isNetwork = !error?.response || error?.code === 'ERR_NETWORK'
+
+    if (isNetwork || (typeof status === 'number' && status >= 500)) {
+      locationsBackoffUntil = Date.now() + LOCATIONS_BACKOFF_MS
+      return []
+    }
+
+    throw error
+  }
 }
 
 export async function showLocation(id) {

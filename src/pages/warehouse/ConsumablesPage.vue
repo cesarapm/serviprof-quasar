@@ -2,8 +2,8 @@
   <q-page class="q-pa-md">
     <div class="row items-center q-col-gutter-md q-mb-md">
       <div class="col">
-        <div class="text-h5">Almacén · Consumibles</div>
-        <div class="text-grey-7">Módulo opcional</div>
+        <div class="text-h5">Almacen · Consumibles</div>
+        <div class="text-grey-7">Submodulo: {{ currentModuleLabel }}</div>
       </div>
       <div class="col-auto">
         <q-btn
@@ -15,6 +15,25 @@
         />
       </div>
     </div>
+
+    <q-card class="q-mb-md">
+      <q-card-section class="row items-center q-col-gutter-md">
+        <div class="col-12 col-md">
+          <div class="text-subtitle1">Operacion de consumibles</div>
+          <div class="text-caption text-grey-7">Separa captura de altas y movimientos.</div>
+        </div>
+        <div class="col-12 col-md-auto">
+          <q-btn-toggle
+            v-model="consumableModule"
+            no-caps
+            unelevated
+            color="primary"
+            toggle-color="primary"
+            :options="moduleOptions"
+          />
+        </div>
+      </q-card-section>
+    </q-card>
 
     <q-banner
       v-if="backendUnavailable && rows.length === 0"
@@ -29,7 +48,7 @@
       {{ errorMessage }}
     </q-banner>
 
-    <q-card class="q-mb-md">
+    <q-card v-show="consumableModule === 'altas'" class="q-mb-md">
       <q-card-section>
         <div class="text-subtitle1">Nuevo consumible</div>
       </q-card-section>
@@ -262,7 +281,240 @@
       </q-card-section>
     </q-card>
 
-    <q-card>
+    <q-card v-show="consumableModule === 'movimientos'" class="q-mb-md">
+      <q-card-section>
+        <div class="text-subtitle1">Movimientos masivos de consumibles</div>
+      </q-card-section>
+      <q-separator />
+      <q-card-section>
+        <div class="row q-col-gutter-md q-mb-md">
+          <div class="col-12 col-md-3">
+            <q-select
+              v-model="movementForm.type"
+              outlined
+              dense
+              label="Tipo"
+              :options="movementTypeOptions"
+              :error="Boolean(movementFieldErrors.type)"
+              :error-message="movementFieldErrors.type"
+            />
+          </div>
+          <div class="col-12 col-md-3">
+            <q-select
+              v-model="movementForm.personnel_id"
+              outlined
+              dense
+              label="Responsable"
+              option-label="label"
+              option-value="id"
+              emit-value
+              map-options
+              :options="personnelOptions"
+              :error="Boolean(movementFieldErrors.personnel_id)"
+              :error-message="movementFieldErrors.personnel_id"
+            />
+          </div>
+          <div class="col-12 col-md-3">
+            <q-input
+              v-model="movementForm.movement_date"
+              outlined
+              dense
+              type="date"
+              label="Fecha"
+              :error="Boolean(movementFieldErrors.movement_date)"
+              :error-message="movementFieldErrors.movement_date"
+            />
+          </div>
+          <div class="col-12 col-md-4" v-if="showMovementClient">
+            <q-select
+              v-model="movementForm.client_id"
+              outlined
+              dense
+              clearable
+              label="Cliente"
+              option-label="label"
+              option-value="id"
+              emit-value
+              map-options
+              :options="clientOptions"
+              :error="Boolean(movementFieldErrors.client_id)"
+              :error-message="movementFieldErrors.client_id"
+            />
+          </div>
+          <div class="col-12 col-md-4" v-if="showMovementClient">
+            <q-input
+              :model-value="selectedConsumableClientLocation?.label || 'Sin ubicacion de cliente'"
+              outlined
+              dense
+              readonly
+              label="Ubicacion cliente"
+            />
+          </div>
+          <div class="col-12 col-md-8">
+            <q-input v-model="movementForm.notes" outlined dense label="Nota general" />
+          </div>
+        </div>
+
+        <div class="bulk-grid-wrapper">
+          <table class="bulk-grid">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Consumible</th>
+                <th>Stock actual</th>
+                <th>Ubicacion actual</th>
+                <th v-if="showMovementClientColumn">Cliente fila</th>
+                <th v-if="showMovementClientColumn">Ubicacion cliente</th>
+                <th v-if="showFromLocationColumn">Ubicacion origen</th>
+                <th v-if="showToLocationColumn">Ubicacion destino</th>
+                <th>Cantidad</th>
+                <th>Nota fila</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in movementRows" :key="row.row_key">
+                <td class="index-cell">{{ index + 1 }}</td>
+                <td>
+                  <q-select
+                    v-model="row.consumable_id"
+                    outlined
+                    dense
+                    option-label="label"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    :options="movementConsumableOptions"
+                    @update:model-value="onChangeMovementConsumable(row)"
+                    :error="Boolean(getMovementRowError(index, 'consumable_id'))"
+                    :error-message="getMovementRowError(index, 'consumable_id')"
+                  />
+                </td>
+                <td>
+                  <q-input
+                    :model-value="getConsumableStockLabel(row.consumable_id)"
+                    outlined
+                    dense
+                    readonly
+                  />
+                </td>
+                <td>
+                  <q-input
+                    :model-value="getConsumableLocationLabel(row.consumable_id)"
+                    outlined
+                    dense
+                    readonly
+                  />
+                </td>
+                <td v-if="showMovementClientColumn">
+                  <q-select
+                    v-model="row.client_id"
+                    outlined
+                    dense
+                    clearable
+                    option-label="label"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    :options="clientOptions"
+                    :error="Boolean(getMovementRowError(index, 'client_id'))"
+                    :error-message="getMovementRowError(index, 'client_id')"
+                  />
+                </td>
+                <td v-if="showMovementClientColumn">
+                  <q-input :model-value="getRowClientLocationLabel(row)" outlined dense readonly />
+                </td>
+                <td v-if="showFromLocationColumn">
+                  <q-select
+                    v-model="row.from_location_id"
+                    outlined
+                    dense
+                    clearable
+                    option-label="label"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    :options="getSourceLocationOptionsForConsumableRow(row)"
+                    :error="Boolean(getMovementRowError(index, 'from_location_id'))"
+                    :error-message="getMovementRowError(index, 'from_location_id')"
+                  />
+                </td>
+                <td v-if="showToLocationColumn">
+                  <q-select
+                    v-model="row.location_id"
+                    outlined
+                    dense
+                    option-label="label"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    :options="getDestinationLocationOptionsForConsumableRow(row)"
+                    :error="Boolean(getMovementRowError(index, 'location_id'))"
+                    :error-message="getMovementRowError(index, 'location_id')"
+                  />
+                </td>
+                <td>
+                  <q-input
+                    v-model.number="row.quantity"
+                    type="number"
+                    min="1"
+                    outlined
+                    dense
+                    :error="Boolean(getMovementRowError(index, 'quantity'))"
+                    :error-message="getMovementRowError(index, 'quantity')"
+                  />
+                </td>
+                <td>
+                  <q-input v-model="row.notes" outlined dense />
+                </td>
+                <td class="text-center">
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="delete"
+                    color="negative"
+                    :disable="movementRows.length <= 1"
+                    @click="removeMovementRow(index)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="row justify-between items-center q-mt-md q-gutter-sm">
+          <div>
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              icon="add"
+              label="Agregar fila"
+              @click="addMovementRow"
+            />
+            <q-btn
+              flat
+              no-caps
+              color="grey-8"
+              label="Limpiar"
+              class="q-ml-sm"
+              @click="resetMovementBulk"
+            />
+          </div>
+          <q-btn
+            color="primary"
+            no-caps
+            icon="save"
+            label="Guardar movimientos"
+            :loading="savingMovementBulk"
+            @click="onSubmitConsumableBulk"
+          />
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <q-card v-show="consumableModule === 'altas'">
       <q-card-section class="q-pb-none">
         <q-toggle v-model="showLowStockOnly" dense label="Solo stock bajo" color="negative" />
       </q-card-section>
@@ -554,8 +806,13 @@ import {
   showConsumable,
   updateConsumable,
 } from 'src/services/consumables-service'
-import { listLocations } from 'src/services/locations-service'
+import {
+  createConsumableMovementsBulk,
+  listConsumableMovements,
+} from 'src/services/consumable-movements-service'
+import { listAlmacen } from 'src/services/almacen-service'
 import { listPersonnel } from 'src/services/personnel-service'
+import { listClients } from 'src/services/clients-service'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -575,11 +832,28 @@ const locationLoading = ref(false)
 const allPersonnel = ref([])
 const personnelOptions = ref([])
 const personnelLoading = ref(false)
+const allClients = ref([])
+const clientOptions = ref([])
+const savingMovementBulk = ref(false)
+const movementFieldErrors = ref({})
+const rawAlmacen = ref([])
+const consumableLocationOptionsById = ref({})
+const loadWarningsShown = ref({
+  locations: false,
+  personnel: false,
+})
+const consumableModule = ref('altas')
+
+const moduleOptions = [
+  { label: 'Altas', value: 'altas' },
+  { label: 'Movimientos', value: 'movimientos' },
+]
 
 const typeOptions = ['refaccion', 'tinta', 'toner', 'otras']
 const defaultStatusOptions = ['nuevo', 'usado', 'renta', 'reparacion']
 const unitOptions = ['pieza', 'caja', 'kit', 'litro', 'ml']
 const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
+const movementTypeOptions = ['salida', 'vendido', 'ajuste', 'movimiento_interno']
 
 const initialForm = () => ({
   type: 'refaccion',
@@ -605,12 +879,85 @@ const initialForm = () => ({
 const form = ref(initialForm())
 const editForm = ref(initialForm())
 
+const initialMovementForm = () => ({
+  type: 'movimiento_interno',
+  personnel_id: null,
+  movement_date: '',
+  client_id: null,
+  notes: '',
+})
+
+const movementForm = ref(initialMovementForm())
+
+function createMovementRow() {
+  return {
+    row_key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    consumable_id: null,
+    quantity: 1,
+    from_location_id: null,
+    location_id: null,
+    client_id: null,
+    notes: '',
+  }
+}
+
+const movementRows = ref([createMovementRow()])
+
 const statusOptions = computed(() => {
   const dynamicStatuses = consumables.value
     .map((item) => item?.status)
     .filter((status) => typeof status === 'string' && status.trim() !== '')
 
   return Array.from(new Set([...defaultStatusOptions, ...dynamicStatuses]))
+})
+
+const movementConsumableOptions = computed(() => {
+  const restrictedTypes = ['movimiento_interno', 'ajuste']
+  return consumables.value
+    .filter((item) => {
+      if (
+        restrictedTypes.includes(movementForm.value.type) &&
+        item.inventory_status === 'vendido'
+      ) {
+        return false
+      }
+      return true
+    })
+    .map((item) => ({
+      id: item.id,
+      label:
+        item.name || item.part_number
+          ? `${item.name || 'Consumible'} (${item.part_number || item.id})`
+          : `Consumible ${item.id}`,
+    }))
+})
+
+const showMovementClient = computed(() => ['salida', 'vendido'].includes(movementForm.value.type))
+const showMovementClientColumn = computed(() =>
+  ['salida', 'vendido'].includes(movementForm.value.type),
+)
+
+const selectedConsumableClientLocation = computed(() => {
+  const clientId = Number(movementForm.value.client_id)
+  if (!clientId) return null
+  const client = allClients.value.find((c) => Number(c.id) === clientId)
+  if (!client?.location_id) return null
+  const locationInAlmacen = allLocations.value.find(
+    (loc) => Number(loc.id) === Number(client.location_id),
+  )
+  const label =
+    locationInAlmacen?.label || client.location_name || `Ubicacion ${client.location_id}`
+  return { id: Number(client.location_id), label }
+})
+const showFromLocationColumn = computed(() =>
+  ['movimiento_interno', 'salida', 'vendido'].includes(movementForm.value.type),
+)
+const showToLocationColumn = computed(() => movementForm.value.type === 'movimiento_interno')
+// Alias para compatibilidad con onChangeMovementConsumable
+const showLocationColumn = showFromLocationColumn
+const currentModuleLabel = computed(() => {
+  const option = moduleOptions.find((item) => item.value === consumableModule.value)
+  return option?.label || 'Altas'
 })
 
 const columns = [
@@ -660,6 +1007,13 @@ const columns = [
     align: 'left',
     sortable: true,
   },
+  {
+    name: 'location_summary',
+    label: 'Ubicaciones',
+    field: 'location_summary',
+    align: 'left',
+    sortable: false,
+  },
   { name: 'batch', label: 'Lote', field: 'batch', align: 'left', sortable: true },
   { name: 'supplier', label: 'Proveedor', field: 'supplier', align: 'left', sortable: true },
   { name: 'actions', label: '', field: 'actions', align: 'right' },
@@ -680,27 +1034,53 @@ const rows = computed(() =>
     minimum_stock: Number(item.minimum_stock ?? 0),
     unit: item.unit ?? '-',
     inventory_status: item.inventory_status ?? '-',
+    location_summary:
+      Array.isArray(item.almacen) && item.almacen.length > 0
+        ? item.almacen
+            .map((entry) => {
+              const locationLabel =
+                entry.location?.name ||
+                (entry.location_id ? `Ub ${entry.location_id}` : 'Sin ubicacion')
+              return `${locationLabel}: ${Number(entry.quantity ?? 0)}`
+            })
+            .join(' | ')
+        : item.location?.name || (item.location_id ? `Ub ${item.location_id}` : '-'),
     batch: item.batch ?? '-',
     supplier: item.supplier ?? '-',
   })),
 )
 
-async function loadLocations() {
-  locationLoading.value = true
+function buildLocationsFromAlmacen() {
+  const seen = new Set()
+  const locations = []
 
-  try {
-    const data = await listLocations()
-    const locations = normalizePayload(data)
+  // Prioridad: rawAlmacen de /api/almacen (datos exactos con cantidad)
+  const source = rawAlmacen.value.length > 0 ? rawAlmacen.value : []
 
-    allLocations.value = locations.map((location) => ({
-      id: location.id,
-      label: `${location.name} (${location.type})`,
-    }))
-
-    locationOptions.value = allLocations.value
-  } finally {
-    locationLoading.value = false
+  for (const entry of source) {
+    const loc = entry.location
+    if (loc && !seen.has(loc.id)) {
+      seen.add(loc.id)
+      locations.push({ id: loc.id, label: `${loc.name} (${loc.type || 'almacen'})` })
+    }
   }
+
+  // Fallback: usar almacen[] embebido en consumables si rawAlmacen vacío
+  if (locations.length === 0) {
+    for (const consumable of consumables.value) {
+      const entries = Array.isArray(consumable.almacen) ? consumable.almacen : []
+      for (const entry of entries) {
+        const loc = entry.location
+        if (loc && !seen.has(loc.id)) {
+          seen.add(loc.id)
+          locations.push({ id: loc.id, label: `${loc.name} (${loc.type || 'almacen'})` })
+        }
+      }
+    }
+  }
+
+  allLocations.value = locations
+  locationOptions.value = [...locations]
 }
 
 function filterLocations(val, update) {
@@ -730,8 +1110,37 @@ async function loadPersonnel() {
     }))
 
     personnelOptions.value = allPersonnel.value
+  } catch {
+    allPersonnel.value = []
+    personnelOptions.value = []
+
+    if (!loadWarningsShown.value.personnel) {
+      $q.notify({
+        type: 'warning',
+        message: 'No se pudo cargar personal. Puedes continuar y recargar despues.',
+      })
+      loadWarningsShown.value.personnel = true
+    }
   } finally {
     personnelLoading.value = false
+  }
+}
+
+async function loadClients() {
+  try {
+    const data = await listClients()
+    const clients = normalizePayload(data)
+
+    allClients.value = clients.map((client) => ({
+      id: client.id,
+      label: client.name || `Cliente ${client.id}`,
+      location_id: client.location_id ?? client.location?.id ?? null,
+      location_name: client.location?.name ?? null,
+    }))
+
+    clientOptions.value = allClients.value
+  } catch {
+    clientOptions.value = []
   }
 }
 
@@ -780,6 +1189,371 @@ function mapValidationErrors(error) {
     accumulator[field] = Array.isArray(messages) ? messages[0] : String(messages)
     return accumulator
   }, {})
+}
+
+function mapMovementValidationErrors(error) {
+  if (error?.response?.status !== 422) return {}
+  const errors = error.response.data?.errors ?? {}
+
+  return Object.entries(errors).reduce((accumulator, [field, messages]) => {
+    accumulator[field] = Array.isArray(messages) ? messages[0] : String(messages)
+    return accumulator
+  }, {})
+}
+
+function getMovementRowError(index, field) {
+  return movementFieldErrors.value[`rows.${index}.${field}`] || ''
+}
+
+function getConsumableStockLabel(consumableId) {
+  if (!consumableId) return 'Sin seleccion'
+  const item = consumables.value.find((row) => row.id === Number(consumableId))
+  if (!item) return 'No encontrado'
+  return `${Number(item.stock_quantity ?? 0)} ${item.unit || 'pzas'}`
+}
+
+function getConsumableLocationLabel(consumableId) {
+  if (!consumableId) return 'Sin ubicacion'
+
+  const item = consumables.value.find((row) => row.id === Number(consumableId))
+  if (!item) return 'No encontrado'
+
+  if (Array.isArray(item.almacen) && item.almacen.length > 0) {
+    return item.almacen
+      .map((entry) => {
+        const locationLabel =
+          entry.location?.name || (entry.location_id ? `Ub ${entry.location_id}` : 'Sin ubicacion')
+        const qty = Number(entry.quantity ?? 0)
+        return `${locationLabel}: ${qty}`
+      })
+      .join(' | ')
+  }
+
+  return item.location?.name || (item.location_id ? `Ub ${item.location_id}` : 'Sin ubicacion')
+}
+
+function getRowClientLocationLabel(row) {
+  const clientId = Number(row.client_id || movementForm.value.client_id)
+  if (!clientId) return 'Sin ubicacion de cliente'
+  const client = allClients.value.find((c) => Number(c.id) === clientId)
+  if (!client?.location_id) return 'Sin ubicacion de cliente'
+  const loc = allLocations.value.find((l) => Number(l.id) === Number(client.location_id))
+  return loc?.label || client.location_name || `Ubicacion ${client.location_id}`
+}
+
+function getConsumableCurrentLocationId(consumableId) {
+  if (!consumableId) return null
+
+  const item = consumables.value.find((row) => row.id === Number(consumableId))
+  if (!item) return null
+
+  if (Array.isArray(item.almacen) && item.almacen.length > 0) {
+    return Number(item.almacen[0].location_id) || null
+  }
+
+  return item.location_id ? Number(item.location_id) : null
+}
+
+function getSourceLocationOptionsForConsumableRow(row) {
+  if (!row.consumable_id) {
+    return []
+  }
+
+  return consumableLocationOptionsById.value[Number(row.consumable_id)] || []
+}
+
+function getEffectiveLocationOptions() {
+  const map = new Map()
+
+  // Ubicaciones con nombre completo (de almacen embebido)
+  allLocations.value.forEach((loc) => {
+    map.set(Number(loc.id), loc)
+  })
+
+  // Ubicaciones adicionales conocidas por historial de movimientos
+  Object.values(consumableLocationOptionsById.value).forEach((options) => {
+    options.forEach((option) => {
+      const id = Number(option.id)
+      if (id && !map.has(id)) {
+        map.set(id, { id, label: option.label || `Ub ${id}` })
+      }
+    })
+  })
+
+  return Array.from(map.values())
+}
+
+function onChangeMovementConsumable(row) {
+  if (!showLocationColumn.value) {
+    return
+  }
+
+  const sourceOptions = getSourceLocationOptionsForConsumableRow(row)
+  const selectedSourceIsValid = sourceOptions.some(
+    (option) => Number(option.id) === Number(row.from_location_id),
+  )
+
+  if (!selectedSourceIsValid) {
+    row.from_location_id = sourceOptions[0]?.id || null
+  }
+
+  if (
+    row.location_id &&
+    row.from_location_id &&
+    Number(row.location_id) === Number(row.from_location_id)
+  ) {
+    row.location_id = null
+  }
+}
+
+function getDestinationLocationOptionsForConsumableRow(row) {
+  const baseOptions = getEffectiveLocationOptions()
+  const currentLocationId = row.from_location_id
+    ? Number(row.from_location_id)
+    : getConsumableCurrentLocationId(row.consumable_id)
+
+  if (!currentLocationId) {
+    return baseOptions
+  }
+
+  return baseOptions.filter((option) => Number(option.id) !== currentLocationId)
+}
+
+async function loadAlmacen() {
+  try {
+    const data = await listAlmacen({ kind: 'consumable', per_page: 500 })
+    rawAlmacen.value = normalizePayload(data)
+  } catch {
+    rawAlmacen.value = []
+  }
+}
+
+async function loadConsumableLocationOptions() {
+  const map = {}
+
+  function registerLocation(consumableId, locationId, locationName, quantity, unit) {
+    const cId = Number(consumableId)
+    const lId = Number(locationId)
+    if (!cId || !lId) return
+
+    if (!map[cId]) map[cId] = []
+
+    const idx = map[cId].findIndex((o) => Number(o.id) === lId)
+    const baseName = locationName || `Ub ${lId}`
+    const label =
+      quantity !== null && quantity !== undefined
+        ? `${baseName}: ${Number(quantity)} ${unit || 'pzas'}`
+        : baseName
+
+    if (idx !== -1) {
+      if (quantity !== null && quantity !== undefined) {
+        map[cId][idx].label = label
+        map[cId][idx].quantity = Number(quantity)
+      }
+      return
+    }
+
+    map[cId].push({ id: lId, label, quantity: quantity != null ? Number(quantity) : null })
+  }
+
+  // Fuente primaria: tabla almacen con cantidad exacta por ubicacion
+  if (rawAlmacen.value.length > 0) {
+    rawAlmacen.value.forEach((entry) => {
+      const unit = entry.consumable?.unit || entry.unit || null
+      registerLocation(
+        entry.consumable_id,
+        entry.location_id,
+        entry.location?.name || null,
+        entry.quantity,
+        unit,
+      )
+    })
+  } else {
+    // Fallback: almacen[] embebido en el consumable
+    consumables.value.forEach((item) => {
+      if (Array.isArray(item.almacen) && item.almacen.length > 0) {
+        item.almacen.forEach((entry) => {
+          registerLocation(
+            item.id,
+            entry.location_id,
+            entry.location?.name || null,
+            entry.quantity,
+            item.unit,
+          )
+        })
+      } else {
+        registerLocation(item.id, item.location_id, item.location?.name || null, null, item.unit)
+      }
+    })
+  }
+
+  // Enriquecer con ubicaciones del historial (sin cantidad — solo para no perder opciones históricas)
+  try {
+    const data = await listConsumableMovements()
+    const movements = normalizePayload(data)
+
+    movements.forEach((movement) => {
+      const consumableId = movement.consumable_id ?? movement.consumable?.id
+      registerLocation(
+        consumableId,
+        movement.from_location_id,
+        movement.from_location?.name || null,
+        null,
+        null,
+      )
+      registerLocation(
+        consumableId,
+        movement.from_location?.id,
+        movement.from_location?.name || null,
+        null,
+        null,
+      )
+      registerLocation(
+        consumableId,
+        movement.location_id,
+        movement.location?.name || null,
+        null,
+        null,
+      )
+      registerLocation(
+        consumableId,
+        movement.location?.id,
+        movement.location?.name || null,
+        null,
+        null,
+      )
+    })
+  } catch {
+    // Si falla historial, se mantiene solo la ubicacion de almacen.
+  }
+
+  consumableLocationOptionsById.value = map
+}
+
+function addMovementRow() {
+  movementRows.value.push(createMovementRow())
+}
+
+function removeMovementRow(index) {
+  if (movementRows.value.length <= 1) return
+  movementRows.value.splice(index, 1)
+}
+
+function resetMovementBulk() {
+  movementForm.value = initialMovementForm()
+  movementRows.value = [createMovementRow()]
+  movementFieldErrors.value = {}
+}
+
+function validateMovementBulk() {
+  const errors = {}
+
+  if (!movementForm.value.type) errors.type = 'Selecciona el tipo.'
+  if (!movementForm.value.personnel_id) errors.personnel_id = 'Selecciona responsable.'
+  if (!movementForm.value.movement_date) errors.movement_date = 'La fecha es obligatoria.'
+
+  const activeRows = movementRows.value
+    .map((row, index) => ({ row, index }))
+    .filter(
+      ({ row }) =>
+        row.consumable_id ||
+        row.from_location_id ||
+        row.location_id ||
+        row.notes ||
+        Number(row.quantity) > 1,
+    )
+
+  if (!activeRows.length) {
+    errors.rows = 'Agrega al menos una fila.'
+  }
+
+  activeRows.forEach(({ row, index }) => {
+    if (!row.consumable_id) errors[`rows.${index}.consumable_id`] = 'Selecciona consumible.'
+    if (!row.quantity || Number(row.quantity) < 1) {
+      errors[`rows.${index}.quantity`] = 'Cantidad minima 1.'
+    }
+    if (showFromLocationColumn.value && !row.from_location_id) {
+      errors[`rows.${index}.from_location_id`] = 'Selecciona la ubicacion de origen.'
+    }
+
+    if (showToLocationColumn.value && !row.location_id) {
+      errors[`rows.${index}.location_id`] = 'Ubicacion destino obligatoria en movimiento interno.'
+    } else if (showToLocationColumn.value) {
+      const currentLocationId = row.from_location_id
+        ? Number(row.from_location_id)
+        : getConsumableCurrentLocationId(row.consumable_id)
+
+      if (currentLocationId && Number(row.location_id) === currentLocationId) {
+        errors[`rows.${index}.location_id`] = 'El destino no puede ser la misma ubicacion actual.'
+      }
+    }
+  })
+
+  movementFieldErrors.value = errors
+  return { isValid: Object.keys(errors).length === 0, activeRows }
+}
+
+async function onSubmitConsumableBulk() {
+  savingMovementBulk.value = true
+  movementFieldErrors.value = {}
+
+  const { isValid, activeRows } = validateMovementBulk()
+  if (!isValid) {
+    savingMovementBulk.value = false
+    return
+  }
+
+  const payload = {
+    type: movementForm.value.type,
+    personnel_id: Number(movementForm.value.personnel_id),
+    movement_date: movementForm.value.movement_date,
+    client_id: movementForm.value.client_id ? Number(movementForm.value.client_id) : null,
+    notes: movementForm.value.notes?.trim() || null,
+    rows: activeRows.map(({ row }) => {
+      const rowPayload = {
+        consumable_id: Number(row.consumable_id),
+        quantity: Number(row.quantity || 0),
+        notes: row.notes?.trim() || null,
+      }
+
+      if (movementForm.value.type === 'movimiento_interno') {
+        // Origen y destino explícitos
+        rowPayload.from_location_id = row.from_location_id ? Number(row.from_location_id) : null
+        rowPayload.location_id = row.location_id ? Number(row.location_id) : null
+      } else if (['salida', 'vendido'].includes(movementForm.value.type)) {
+        // El origen seleccionado es la ubicación de la que se resta stock
+        rowPayload.location_id = row.from_location_id ? Number(row.from_location_id) : null
+        // Cliente de la fila tiene prioridad sobre el cliente general del formulario
+        const effectiveClientId = row.client_id || movementForm.value.client_id
+        if (effectiveClientId) rowPayload.client_id = Number(effectiveClientId)
+      } else {
+        rowPayload.location_id = row.location_id ? Number(row.location_id) : null
+      }
+
+      return rowPayload
+    }),
+  }
+
+  try {
+    await createConsumableMovementsBulk(payload)
+    $q.notify({
+      type: 'positive',
+      message: `${payload.rows.length} movimiento(s) de consumible registrado(s).`,
+    })
+    resetMovementBulk()
+    await Promise.all([loadConsumables({ silent: true }), loadConsumableLocationOptions()])
+  } catch (error) {
+    movementFieldErrors.value = mapMovementValidationErrors(error)
+
+    if (!Object.keys(movementFieldErrors.value).length) {
+      $q.notify({
+        type: 'negative',
+        message: error.response?.data?.message || 'No fue posible guardar el lote.',
+      })
+    }
+  } finally {
+    savingMovementBulk.value = false
+  }
 }
 
 function resetForm() {
@@ -1019,6 +1793,49 @@ async function onDeleteConsumable(id) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadConsumables(), loadLocations(), loadPersonnel()])
+  await Promise.allSettled([loadConsumables(), loadAlmacen(), loadPersonnel(), loadClients()])
+  buildLocationsFromAlmacen()
+  await loadConsumableLocationOptions()
 })
 </script>
+
+<style scoped>
+.bulk-grid-wrapper {
+  overflow-x: auto;
+  border: 1px solid #d6dce5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.bulk-grid {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.bulk-grid th {
+  background: #eef3fb;
+  color: #324a6d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11px;
+  border-bottom: 1px solid #d6dce5;
+  border-right: 1px solid #e7ebf0;
+  padding: 10px 8px;
+  white-space: nowrap;
+}
+
+.bulk-grid td {
+  border-bottom: 1px solid #eff2f6;
+  border-right: 1px solid #eff2f6;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.index-cell {
+  width: 48px;
+  text-align: center;
+  color: #4e617e;
+  font-weight: 600;
+}
+</style>

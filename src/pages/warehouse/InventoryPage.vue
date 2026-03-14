@@ -127,7 +127,7 @@
           </q-td>
         </template>
 
-        <template #body-cell-actions="props">
+        <!-- <template #body-cell-actions="props">
           <q-td :props="props" class="text-right q-gutter-xs">
             <q-btn
               v-if="props.row.source === 'equipo' && props.row.inventory_status === 'disponible'"
@@ -157,7 +157,7 @@
               @click="onOpenReturnDialog(props.row)"
             />
           </q-td>
-        </template>
+        </template> -->
       </q-table>
     </q-card>
 
@@ -219,6 +219,24 @@
                 emit-value
                 map-options
                 :options="locationOptions"
+              />
+            </div>
+
+            <div
+              class="col-12 col-md-4"
+              v-if="movementMode === 'consumible' && movementForm.type === 'movimiento_interno'"
+            >
+              <q-select
+                v-model="movementForm.from_location_id"
+                outlined
+                dense
+                clearable
+                label="Ubicación origen"
+                option-label="label"
+                option-value="id"
+                emit-value
+                map-options
+                :options="sourceLocationOptions"
               />
             </div>
 
@@ -349,11 +367,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { listProducts } from 'src/services/products-service'
-import { listConsumables } from 'src/services/consumables-service'
-import { listLocations } from 'src/services/locations-service'
+import { listAlmacen } from 'src/services/almacen-service'
 import {
   createEquipmentMovement,
   listEquipmentMovements,
@@ -366,8 +382,8 @@ const $q = useQuasar()
 const loading = ref(false)
 const backendUnavailable = ref(false)
 const errorMessage = ref('')
-const rawProducts = ref([])
-const rawConsumables = ref([])
+const rawAlmacen = ref([])
+const locationsData = ref([])
 const locationOptions = ref([])
 const locationMap = ref({})
 const movementDialog = ref(false)
@@ -381,12 +397,13 @@ const returnTargetProduct = ref(null)
 const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
 const sourceOptions = ['equipo', 'consumible']
 const equipmentTypeOptions = ['copiadora', 'impresora']
-const consumableTypeOptions = ['entrada', 'salida', 'ajuste']
+const consumableTypeOptions = ['entrada', 'salida', 'ajuste', 'movimiento_interno']
 
 const movementForm = ref({
   personnel_id: null,
   type: 'renta',
   client_id: null,
+  from_location_id: null,
   location_id: null,
   current_counter_bw: null,
   current_counter_color: null,
@@ -417,6 +434,7 @@ const columns = [
   { name: 'brand', label: 'Marca', field: 'brand', align: 'left', sortable: true },
   { name: 'model', label: 'Modelo', field: 'model', align: 'left', sortable: true },
   { name: 'serial_number', label: 'Serie', field: 'serial_number', align: 'left', sortable: true },
+  { name: 'quantity', label: 'Cantidad', field: 'quantity', align: 'center', sortable: true },
   {
     name: 'location_label',
     label: 'Ubicación',
@@ -431,42 +449,66 @@ const columns = [
     align: 'left',
     sortable: true,
   },
-  { name: 'actions', label: 'Acciones', field: 'actions', align: 'right' },
+  // { name: 'actions', label: 'Acciones', field: 'actions', align: 'right' },
 ]
 
 const movementTypeOptions = computed(() =>
-  movementMode.value === 'equipo' ? ['renta', 'salida', 'venta', 'mantenimiento'] : ['salida'],
+  movementMode.value === 'equipo'
+    ? ['renta', 'salida', 'venta', 'mantenimiento', 'movimiento_interno']
+    : ['entrada', 'salida', 'ajuste', 'movimiento_interno'],
 )
 
-const rows = computed(() => [
-  ...rawProducts.value.map((product) => ({
-    row_key: `equipo-${product.id}`,
-    id: product.id,
-    source: 'equipo',
-    type: product.type ?? '-',
-    brand: product.brand ?? '-',
-    model: product.model ?? '-',
-    serial_number: product.serial_number ?? '-',
-    location_id: product.location_id ?? null,
-    location_label: locationMap.value[product.location_id] ?? `#${product.location_id ?? '-'}`,
-    inventory_status: product.inventory_status ?? 'disponible',
-    original: product,
-  })),
-  ...rawConsumables.value.map((consumable) => ({
-    row_key: `consumible-${consumable.id}`,
-    id: consumable.id,
-    source: 'consumible',
-    type: consumable.type ?? '-',
-    brand: consumable.brand ?? '-',
-    model: consumable.model ?? consumable.name ?? '-',
-    serial_number: consumable.serial_number ?? consumable.part_number ?? '-',
-    location_id: consumable.location_id ?? null,
-    location_label:
-      locationMap.value[consumable.location_id] ?? `#${consumable.location_id ?? '-'}`,
-    inventory_status: consumable.inventory_status ?? 'disponible',
-    original: consumable,
-  })),
-])
+const sourceLocationOptions = computed(() => {
+  if (movementMode.value !== 'consumible' || !selectedInventoryRow.value?.consumable_id) {
+    return locationOptions.value
+  }
+
+  const seen = new Map()
+
+  rawAlmacen.value
+    .filter((row) => Number(row.consumable_id) === Number(selectedInventoryRow.value.consumable_id))
+    .forEach((row) => {
+      if (!row.location_id) return
+
+      const id = Number(row.location_id)
+      if (!seen.has(id)) {
+        seen.set(id, {
+          id,
+          label: row.location?.name || locationMap.value[id] || `Ub ${id}`,
+        })
+      }
+    })
+
+  return Array.from(seen.values())
+})
+
+const rows = computed(() =>
+  rawAlmacen.value.map((entry) => {
+    const isEquipment = Boolean(entry.product_id)
+    const item = isEquipment ? entry.product : entry.consumable
+
+    return {
+      row_key: `almacen-${entry.id}`,
+      id: entry.id,
+      almacen_id: entry.id,
+      source: isEquipment ? 'equipo' : 'consumible',
+      product_id: entry.product_id ?? null,
+      consumable_id: entry.consumable_id ?? null,
+      type: item?.type ?? '-',
+      brand: item?.brand ?? '-',
+      model: item?.model ?? item?.name ?? '-',
+      serial_number: item?.serial_number ?? item?.part_number ?? '-',
+      quantity: Number(entry.quantity ?? (isEquipment ? 1 : 0)),
+      location_id: entry.location_id ?? null,
+      location_label:
+        entry.location?.name ||
+        locationMap.value[entry.location_id] ||
+        `#${entry.location_id ?? '-'}`,
+      inventory_status: item?.inventory_status ?? 'disponible',
+      original: item,
+    }
+  }),
+)
 
 const typeOptions = computed(() => {
   if (filters.value.source === 'equipo') {
@@ -531,6 +573,7 @@ const statusSummary = computed(() => {
 function normalizePayload(data) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.data)) return data.data
+  if (Array.isArray(data?.data?.data)) return data.data.data
   return []
 }
 
@@ -538,32 +581,52 @@ function todayDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function resetMovementForm() {
-  movementForm.value = {
-    personnel_id: null,
-    type: movementMode.value === 'equipo' ? 'renta' : 'salida',
-    client_id: null,
-    location_id: selectedInventoryRow.value?.location_id ?? null,
-    current_counter_bw: null,
-    current_counter_color: null,
-    counter_read_at: todayDate(),
-    date_out: todayDate(),
-    date_return: '',
-    quantity: 1,
-    movement_date: todayDate(),
-    notes: movementMode.value === 'equipo' ? 'Salida a cliente' : 'Consumo interno',
-  }
-}
+// function resetMovementForm() {
+//   movementForm.value = {
+//     personnel_id: null,
+//     type: movementMode.value === 'equipo' ? 'renta' : 'salida',
+//     client_id: null,
+//     from_location_id: selectedInventoryRow.value?.location_id ?? null,
+//     location_id: selectedInventoryRow.value?.location_id ?? null,
+//     current_counter_bw: null,
+//     current_counter_color: null,
+//     counter_read_at: todayDate(),
+//     date_out: todayDate(),
+//     date_return: '',
+//     quantity: 1,
+//     movement_date: todayDate(),
+//     notes: movementMode.value === 'equipo' ? 'Salida a cliente' : 'Consumo interno',
+//   }
+// }
 
-function onOpenMovementDialog(row) {
-  selectedInventoryRow.value = row
-  movementMode.value = row.source
-  resetMovementForm()
-  movementDialog.value = true
-}
+// function onOpenMovementDialog(row) {
+//   selectedInventoryRow.value = row
+//   movementMode.value = row.source
+//   resetMovementForm()
+//   movementDialog.value = true
+// }
 
 async function onSubmitMovement() {
   if (!selectedInventoryRow.value?.id || !movementForm.value.personnel_id) {
+    return
+  }
+
+  if (
+    movementMode.value === 'consumible' &&
+    movementForm.value.type === 'movimiento_interno' &&
+    !movementForm.value.from_location_id
+  ) {
+    $q.notify({ type: 'warning', message: 'Selecciona la ubicacion origen.' })
+    return
+  }
+
+  if (
+    movementMode.value === 'consumible' &&
+    movementForm.value.type === 'movimiento_interno' &&
+    movementForm.value.location_id &&
+    Number(movementForm.value.location_id) === Number(movementForm.value.from_location_id)
+  ) {
+    $q.notify({ type: 'warning', message: 'Origen y destino no pueden ser la misma ubicacion.' })
     return
   }
 
@@ -571,8 +634,8 @@ async function onSubmitMovement() {
 
   try {
     if (movementMode.value === 'consumible') {
-      await createConsumableMovement({
-        consumable_id: selectedInventoryRow.value.id,
+      const payload = {
+        consumable_id: selectedInventoryRow.value.consumable_id || selectedInventoryRow.value.id,
         personnel_id: Number(movementForm.value.personnel_id),
         type: movementForm.value.type || 'salida',
         quantity: Number(movementForm.value.quantity || 0),
@@ -580,10 +643,16 @@ async function onSubmitMovement() {
         client_id: movementForm.value.client_id || null,
         location_id: movementForm.value.location_id || null,
         notes: movementForm.value.notes || null,
-      })
+      }
+
+      if (movementForm.value.type === 'movimiento_interno') {
+        payload.from_location_id = movementForm.value.from_location_id || null
+      }
+
+      await createConsumableMovement(payload)
     } else {
       await createEquipmentMovement({
-        product_id: selectedInventoryRow.value.id,
+        product_id: selectedInventoryRow.value.product_id || selectedInventoryRow.value.id,
         personnel_id: Number(movementForm.value.personnel_id),
         type: movementForm.value.type || 'renta',
         client_id: movementForm.value.client_id || null,
@@ -621,28 +690,27 @@ async function onSubmitMovement() {
   }
 }
 
-function onOpenReturnDialog(row) {
-  returnTargetProduct.value = row
-  returnForm.value = { date_return: todayDate() }
-  returnDialog.value = true
-}
+// function onOpenReturnDialog(row) {
+//   returnTargetProduct.value = row
+//   returnForm.value = { date_return: todayDate() }
+//   returnDialog.value = true
+// }
 
 async function onSubmitReturnDate() {
-  if (!returnTargetProduct.value?.id || !returnForm.value.date_return) {
+  if (!returnTargetProduct.value?.product_id || !returnForm.value.date_return) {
     return
   }
 
   returnSaving.value = true
 
   try {
-    const movementsData = await listEquipmentMovements({ product_id: returnTargetProduct.value.id })
+    const productId = Number(returnTargetProduct.value.product_id)
+    const movementsData = await listEquipmentMovements({ product_id: productId })
     const movements = normalizePayload(movementsData)
     const openRental = movements
       .filter(
         (item) =>
-          Number(item.product_id) === Number(returnTargetProduct.value.id) &&
-          item.type === 'renta' &&
-          !item.date_return,
+          Number(item.product_id) === productId && item.type === 'renta' && !item.date_return,
       )
       .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0]
 
@@ -676,13 +744,11 @@ async function loadInventory() {
   errorMessage.value = ''
 
   try {
-    const [productsData, consumablesData] = await Promise.all([listProducts(), listConsumables()])
-    rawProducts.value = normalizePayload(productsData)
-    rawConsumables.value = normalizePayload(consumablesData)
+    const data = await listAlmacen({ per_page: 200 })
+    rawAlmacen.value = normalizePayload(data)
     backendUnavailable.value = false
   } catch (error) {
-    rawProducts.value = []
-    rawConsumables.value = []
+    rawAlmacen.value = []
     backendUnavailable.value = !error?.response || error?.code === 'ERR_NETWORK'
 
     if (!backendUnavailable.value) {
@@ -693,24 +759,26 @@ async function loadInventory() {
   }
 }
 
-async function loadLocationsCatalog() {
-  try {
-    const data = await listLocations()
-    const locations = normalizePayload(data)
+function buildLocationsCatalogFromAlmacen() {
+  const seen = new Set()
+  const locations = []
 
-    locationOptions.value = locations.map((location) => ({
-      id: location.id,
-      label: `${location.name} (${location.type})`,
-    }))
-
-    locationMap.value = locations.reduce((accumulator, location) => {
-      accumulator[location.id] = location.name
-      return accumulator
-    }, {})
-  } catch {
-    locationOptions.value = []
-    locationMap.value = {}
+  for (const entry of rawAlmacen.value) {
+    if (entry.location && !seen.has(entry.location.id)) {
+      seen.add(entry.location.id)
+      locations.push(entry.location)
+    }
   }
+
+  locationsData.value = locations
+  locationOptions.value = locations.map((location) => ({
+    id: location.id,
+    label: `${location.name} (${location.type || 'almacen'})`,
+  }))
+  locationMap.value = locations.reduce((accumulator, location) => {
+    accumulator[location.id] = location.name
+    return accumulator
+  }, {})
 }
 
 function resetFilters() {
@@ -723,7 +791,28 @@ function resetFilters() {
   }
 }
 
+// Auto-rellenar ubicación al seleccionar cliente
+watch(
+  () => movementForm.value.client_id,
+  (clientId) => {
+    if (!clientId) {
+      return
+    }
+
+    // Buscar la ubicación del cliente seleccionado
+    const clientLocation = locationsData.value.find(
+      (loc) => loc.client_id === Number(clientId) && loc.type === 'cliente',
+    )
+
+    if (clientLocation) {
+      movementForm.value.location_id = clientLocation.id
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
-  await Promise.all([loadInventory(), loadLocationsCatalog()])
+  await loadInventory()
+  buildLocationsCatalogFromAlmacen()
 })
 </script>

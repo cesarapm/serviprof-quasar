@@ -10,6 +10,11 @@ export async function createEquipmentMovement(payload) {
   return data
 }
 
+export async function createEquipmentMovementsBulk(payload) {
+  const { data } = await api.post('/api/equipment-movements/bulk', payload)
+  return data
+}
+
 export async function showEquipmentMovement(id) {
   const { data } = await api.get(`/api/equipment-movements/${id}`)
   return data
@@ -18,6 +23,11 @@ export async function showEquipmentMovement(id) {
 export async function updateEquipmentMovement(id, payload, partial = true) {
   const method = partial ? 'patch' : 'put'
   const { data } = await api[method](`/api/equipment-movements/${id}`, payload)
+  return data
+}
+
+export async function createRetornoMovement(id, payload) {
+  const { data } = await api.post(`/api/equipment-movements/${id}/retorno`, payload)
   return data
 }
 
