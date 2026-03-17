@@ -154,13 +154,13 @@ const columns = [
     sortable: true,
   },
   { name: 'type', label: 'Tipo', field: 'type', align: 'left', sortable: true },
-  {
-    name: 'client_id',
-    label: 'Cliente',
-    field: 'client_id',
-    align: 'right',
-    sortable: true,
-  },
+  // {
+  //   name: 'client_id',
+  //   label: 'Cliente',
+  //   field: 'client_id',
+  //   align: 'right',
+  //   sortable: true,
+  // },
   {
     name: 'related_count',
     label: 'Ítems',
@@ -172,15 +172,49 @@ const columns = [
 ]
 
 function getRelatedCount(item) {
+  console.log('=== ITEM COMPLETO ===')
+  console.log(JSON.stringify(item, null, 2))
+  console.log('=== PROPIEDADES DISPONIBLES ===')
+  console.log(Object.keys(item))
+
   const keys = [
     'products_count',
+    'equipments_count',
+    'equipment_count',
+    'consumables_count',
+    'consumable_count',
     'items_count',
     'inventory_count',
-    'equipment_count',
-    'equipments_count',
+    'product_count',
+    'item_count',
+    'related_count',
+    'total_count',
+    'count',
+    'almacen_count',
+    'inventory_items_count',
+    'almacen',
   ]
 
-  return keys.reduce((total, key) => total + Number(item?.[key] ?? 0), 0)
+  const total = keys.reduce((total, key) => {
+    const value = Number(item?.[key] ?? 0)
+    if (value > 0) {
+      console.log(`Encontrado ${key}: ${value}`)
+    }
+    return total + value
+  }, 0)
+
+  // También revisar si hay objetos anidados con contadores
+  if (item.almacen && typeof item.almacen === 'object') {
+    console.log('Objeto almacen encontrado:', item.almacen)
+  }
+
+  if (item.inventory && typeof item.inventory === 'object') {
+    console.log('Objeto inventory encontrado:', item.inventory)
+  }
+
+  console.log('Total calculado:', total)
+  console.log('===============================')
+  return total
 }
 
 const rows = computed(() =>
@@ -243,8 +277,18 @@ async function loadLocations(options = {}) {
   }
 
   try {
-    const data = await listLocations()
-    locations.value = normalizePayload(data)
+    const data = await listLocations({
+      include_counts: true,
+      with_products: true,
+      with_consumables: true,
+      with_equipment: true,
+    })
+    const normalizedData = normalizePayload(data)
+    // console.log('Datos de ubicaciones recibidos:', normalizedData)
+    // if (normalizedData.length > 0) {
+    //   console.log('Ejemplo de ubicación:', normalizedData[0])
+    // }
+    locations.value = normalizedData
     backendUnavailable.value = false
   } catch (error) {
     if (!silent) {

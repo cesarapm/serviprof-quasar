@@ -1,13 +1,13 @@
 <template>
   <q-page class="q-pa-md">
-    <div class="text-h5 q-mb-sm">Almacen · Productos</div>
+    <div class="text-h5 q-mb-sm">Almacen · Equipos</div>
 
     <q-card class="q-mb-md">
       <q-card-section class="row items-center q-col-gutter-md">
         <div class="col-12 col-md">
           <div class="text-subtitle1">Submodulo: {{ currentModuleLabel }}</div>
           <div class="text-caption text-grey-7">
-            Cambia entre captura de productos, movimientos y retornos.
+            Cambia entre captura de equipos, movimientos y retornos.
           </div>
         </div>
         <div class="col-12 col-md-auto">
@@ -39,7 +39,7 @@
 
     <q-card v-show="productModule === 'nuevo'" class="q-mb-md">
       <q-card-section>
-        <div class="text-subtitle1">Nuevo producto</div>
+        <div class="text-subtitle1">Nuevo equipo</div>
       </q-card-section>
       <q-separator />
       <q-card-section>
@@ -1169,19 +1169,12 @@ function createMovementRow() {
 const movementRows = ref([createMovementRow()])
 
 const movementProductOptions = computed(() => {
-  const isInternalOrMaintenance = [
-    'movimiento_interno',
-    'mantenimiento',
-    'renta',
-    'venta',
-  ].includes(movementForm.value.type)
   return rawProducts.value
     .filter((product) => {
-      // No permitir productos vendidos para operaciones internas
-      if (isInternalOrMaintenance && product.inventory_status === 'vendido') return false
-
-      // No permitir productos rentados en ningún tipo de movimiento - solo desde retornos
-      if (product.inventory_status === 'rentado') return false
+      // No permitir productos ya en procesos: vendido, rentado o en mantenimiento
+      if (['vendido', 'rentado', 'mantenimiento'].includes(product.inventory_status)) {
+        return false
+      }
 
       return true
     })
@@ -1490,7 +1483,8 @@ function buildLocationsFromProducts() {
     label: `${loc.name} (${loc.type || 'almacen'})`,
     type: loc.type || 'almacen',
   }))
-  locationOptions.value = [...allLocations.value]
+  // Filtrar ubicaciones de clientes para formularios de creación
+  locationOptions.value = allLocations.value.filter((loc) => loc.type !== 'cliente')
 
   console.log(
     'allLocations final:',
@@ -1564,13 +1558,16 @@ async function loadClients() {
 
 function filterLocations(val, update) {
   update(() => {
+    // Siempre excluir ubicaciones de clientes
+    const availableLocations = allLocations.value.filter((loc) => loc.type !== 'cliente')
+
     if (val === '') {
-      locationOptions.value = allLocations.value
+      locationOptions.value = availableLocations
       return
     }
 
     const needle = val.toLowerCase()
-    locationOptions.value = allLocations.value.filter((option) =>
+    locationOptions.value = availableLocations.filter((option) =>
       option.label.toLowerCase().includes(needle),
     )
   })
@@ -1696,8 +1693,10 @@ function getEffectiveLocationOptions() {
 
 function getDestinationLocationOptionsForProductRow(row) {
   const baseOptions = getEffectiveLocationOptions()
-  // Filtrar ubicaciones de clientes y la ubicación actual del producto
-  const filteredOptions = baseOptions.filter((option) => option.type !== 'cliente')
+  // Filtrar ubicaciones de clientes, mantenimiento y la ubicación actual del producto
+  const filteredOptions = baseOptions.filter(
+    (option) => !['cliente', 'mantenimiento'].includes(option.type),
+  )
   const currentLocationId = getProductCurrentLocationId(row.product_id)
 
   if (!currentLocationId) {

@@ -25,7 +25,7 @@
 <script setup>
 const modules = [
   {
-    title: 'Productos',
+    title: 'Equipos',
     description: 'Alta, movimientos y retornos de equipos',
     icon: 'inventory_2',
     color: 'blue',

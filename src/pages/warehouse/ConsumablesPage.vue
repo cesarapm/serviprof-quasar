@@ -1094,18 +1094,22 @@ function buildLocationsFromProducts() {
   }
 
   allLocations.value = locations
-  locationOptions.value = [...locations]
+  // Filtrar ubicaciones de clientes para formularios de creación
+  locationOptions.value = locations.filter((loc) => loc.type !== 'cliente')
 }
 
 function filterLocations(val, update) {
   update(() => {
+    // Siempre excluir ubicaciones de clientes
+    const availableLocations = allLocations.value.filter((loc) => loc.type !== 'cliente')
+
     if (val === '') {
-      locationOptions.value = allLocations.value
+      locationOptions.value = availableLocations
       return
     }
 
     const needle = val.toLowerCase()
-    locationOptions.value = allLocations.value.filter((option) =>
+    locationOptions.value = availableLocations.filter((option) =>
       option.label.toLowerCase().includes(needle),
     )
   })
