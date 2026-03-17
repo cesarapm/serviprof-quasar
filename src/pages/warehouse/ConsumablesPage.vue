@@ -810,7 +810,7 @@ import {
   createConsumableMovementsBulk,
   listConsumableMovements,
 } from 'src/services/consumable-movements-service'
-import { listAlmacen } from 'src/services/almacen-service'
+import { listLocations } from 'src/services/locations-service'
 import { listPersonnel } from 'src/services/personnel-service'
 import { listClients } from 'src/services/clients-service'
 
@@ -827,6 +827,8 @@ const deletingId = ref(null)
 const consumables = ref([])
 const showLowStockOnly = ref(false)
 const allLocations = ref([])
+const rawLocations = ref([])
+// const locationsRaw = ref([])
 const locationOptions = ref([])
 const locationLoading = ref(false)
 const allPersonnel = ref([])
@@ -853,7 +855,7 @@ const typeOptions = ['refaccion', 'tinta', 'toner', 'otras']
 const defaultStatusOptions = ['nuevo', 'usado', 'renta', 'reparacion']
 const unitOptions = ['pieza', 'caja', 'kit', 'litro', 'ml']
 const inventoryStatusOptions = ['disponible', 'rentado', 'vendido', 'mantenimiento']
-const movementTypeOptions = ['salida', 'vendido', 'ajuste', 'movimiento_interno']
+const movementTypeOptions = ['vendido', 'ajuste', 'movimiento_interno']
 
 const initialForm = () => ({
   type: 'refaccion',
@@ -1050,23 +1052,35 @@ const rows = computed(() =>
   })),
 )
 
-function buildLocationsFromAlmacen() {
+function buildLocationsFromProducts() {
   const seen = new Set()
   const locations = []
 
-  // Prioridad: rawAlmacen de /api/almacen (datos exactos con cantidad)
-  const source = rawAlmacen.value.length > 0 ? rawAlmacen.value : []
+  // Fuente primaria: rawLocations de /api/locations (todas las ubicaciones del sistema)
+  if (rawLocations.value.length > 0) {
+    for (const location of rawLocations.value) {
+      console.log('Procesando location:', location)
 
-  for (const entry of source) {
-    const loc = entry.location
-    if (loc && !seen.has(loc.id)) {
-      seen.add(loc.id)
-      locations.push({ id: loc.id, label: `${loc.name} (${loc.type || 'almacen'})` })
+      if (location && (location.id || location.location_id)) {
+        const locationId = location.id || location.location_id
+        if (!seen.has(locationId)) {
+          seen.add(locationId)
+          const normalizedLoc = {
+            id: locationId,
+            name: location.name || `Ubicacion ${locationId}`,
+            type: location.type || 'almacen',
+          }
+          locations.push({
+            id: normalizedLoc.id,
+            label: `${normalizedLoc.name} (${normalizedLoc.type})`,
+            type: normalizedLoc.type,
+          })
+        }
+      }
     }
-  }
-
-  // Fallback: usar almacen[] embebido en consumables si rawAlmacen vacío
-  if (locations.length === 0) {
+  } else {
+    // Fallback: usar almacen[] embebido en consumibles
+    console.log('Fallback: usando ubicaciones de consumibles')
     for (const consumable of consumables.value) {
       const entries = Array.isArray(consumable.almacen) ? consumable.almacen : []
       for (const entry of entries) {
@@ -1263,24 +1277,8 @@ function getSourceLocationOptionsForConsumableRow(row) {
 }
 
 function getEffectiveLocationOptions() {
-  const map = new Map()
-
-  // Ubicaciones con nombre completo (de almacen embebido)
-  allLocations.value.forEach((loc) => {
-    map.set(Number(loc.id), loc)
-  })
-
-  // Ubicaciones adicionales conocidas por historial de movimientos
-  Object.values(consumableLocationOptionsById.value).forEach((options) => {
-    options.forEach((option) => {
-      const id = Number(option.id)
-      if (id && !map.has(id)) {
-        map.set(id, { id, label: option.label || `Ub ${id}` })
-      }
-    })
-  })
-
-  return Array.from(map.values())
+  // Usar directamente allLocations.value que ya tiene todas las ubicaciones cargadas desde /api/locations
+  return allLocations.value
 }
 
 function onChangeMovementConsumable(row) {
@@ -1308,23 +1306,53 @@ function onChangeMovementConsumable(row) {
 
 function getDestinationLocationOptionsForConsumableRow(row) {
   const baseOptions = getEffectiveLocationOptions()
+  // Filtrar ubicaciones de clientes y la ubicación actual
+  const filteredOptions = baseOptions.filter((option) => option.type !== 'cliente')
   const currentLocationId = row.from_location_id
     ? Number(row.from_location_id)
     : getConsumableCurrentLocationId(row.consumable_id)
 
   if (!currentLocationId) {
-    return baseOptions
+    return filteredOptions
   }
 
-  return baseOptions.filter((option) => Number(option.id) !== currentLocationId)
+  return filteredOptions.filter((option) => Number(option.id) !== currentLocationId)
 }
 
-async function loadAlmacen() {
+async function loadLocations() {
   try {
-    const data = await listAlmacen({ kind: 'consumable', per_page: 500 })
-    rawAlmacen.value = normalizePayload(data)
-  } catch {
-    rawAlmacen.value = []
+    // Obtener TODAS las ubicaciones del sistema usando el endpoint correcto
+    const data = await listLocations({ per_page: 1000 })
+    console.log('Respuesta cruda del backend (locations):', data)
+
+    rawLocations.value = normalizePayload(data)
+    console.log(
+      'rawLocations después de normalizar:',
+      rawLocations.value.length,
+      rawLocations.value,
+    )
+
+    // Si normalizePayload no funcionó bien, intentar acceso directo
+    if (rawLocations.value.length === 0 && data) {
+      console.log('Intentando acceso directo a data:', data)
+      if (Array.isArray(data)) {
+        rawLocations.value = data
+      } else if (data.data && Array.isArray(data.data)) {
+        rawLocations.value = data.data
+      } else if (data.items && Array.isArray(data.items)) {
+        rawLocations.value = data.items
+      } else if (data.locations && Array.isArray(data.locations)) {
+        rawLocations.value = data.locations
+      }
+      console.log(
+        'rawLocations después de acceso directo:',
+        rawLocations.value.length,
+        rawLocations.value,
+      )
+    }
+  } catch (error) {
+    console.error('Error cargando ubicaciones:', error)
+    rawLocations.value = []
   }
 }
 
@@ -1793,8 +1821,8 @@ async function onDeleteConsumable(id) {
 }
 
 onMounted(async () => {
-  await Promise.allSettled([loadConsumables(), loadAlmacen(), loadPersonnel(), loadClients()])
-  buildLocationsFromAlmacen()
+  await Promise.allSettled([loadConsumables(), loadLocations(), loadPersonnel(), loadClients()])
+  buildLocationsFromProducts()
   await loadConsumableLocationOptions()
 })
 </script>

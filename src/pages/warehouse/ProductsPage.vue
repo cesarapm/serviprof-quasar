@@ -562,9 +562,10 @@
     <q-card v-show="productModule === 'retornos'" class="q-mb-md">
       <q-card-section class="row items-center justify-between q-col-gutter-md">
         <div class="col">
-          <div class="text-subtitle1">Retornos de renta</div>
+          <div class="text-subtitle1">Retornos de equipos</div>
           <div class="text-caption text-grey-7">
-            Selecciona equipos rentados, define fecha de retorno y ubicacion final.
+            Selecciona equipos rentados o en mantenimiento, define fecha de retorno y ubicacion
+            final.
           </div>
         </div>
         <div class="col-auto">
@@ -576,6 +577,15 @@
             label="Recargar retornos"
             :loading="loadingRentals"
             @click="loadOpenRentals"
+          />
+          <q-btn
+            flat
+            no-caps
+            color="orange"
+            icon="location_on"
+            label="Recargar ubicaciones"
+            class="q-ml-sm"
+            @click="reloadLocations"
           />
         </div>
       </q-card-section>
@@ -624,6 +634,7 @@
               <tr>
                 <th style="width: 56px">Sel</th>
                 <th>Equipo</th>
+                <th>Tipo</th>
                 <th>Cliente</th>
                 <th>Fecha salida</th>
                 <th>Ubicacion retorno</th>
@@ -638,6 +649,14 @@
                   <q-checkbox v-model="row.selected" />
                 </td>
                 <td>{{ row.product_label }}</td>
+                <td>
+                  <q-chip
+                    :color="row.movement_type === 'renta' ? 'blue' : 'orange'"
+                    text-color="white"
+                    dense
+                    :label="row.movement_type === 'renta' ? 'Renta' : 'Mantenimiento'"
+                  />
+                </td>
                 <td>{{ row.client_label }}</td>
                 <td>{{ row.date_out || '-' }}</td>
                 <td>
@@ -678,8 +697,8 @@
                 </td>
               </tr>
               <tr v-if="!loadingRentals && rentalReturnRows.length === 0">
-                <td colspan="8" class="text-center text-grey-7 q-pa-md">
-                  No hay equipos rentados pendientes de retorno.
+                <td colspan="9" class="text-center text-grey-7 q-pa-md">
+                  No hay equipos rentados o en mantenimiento pendientes de retorno.
                 </td>
               </tr>
             </tbody>
@@ -1038,7 +1057,7 @@ import {
 } from 'src/services/equipment-movements-service'
 import { listPersonnel } from 'src/services/personnel-service'
 import { listClients } from 'src/services/clients-service'
-import { listAlmacen } from 'src/services/almacen-service'
+import { listLocations } from 'src/services/locations-service'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -1158,7 +1177,12 @@ const movementProductOptions = computed(() => {
   ].includes(movementForm.value.type)
   return rawProducts.value
     .filter((product) => {
+      // No permitir productos vendidos para operaciones internas
       if (isInternalOrMaintenance && product.inventory_status === 'vendido') return false
+
+      // No permitir productos rentados en ningún tipo de movimiento - solo desde retornos
+      if (product.inventory_status === 'rentado') return false
+
       return true
     })
     .map((product) => ({
@@ -1373,15 +1397,50 @@ function normalizeSingleItem(data) {
   return null
 }
 
-const rawAlmacen = ref([])
+const rawLocations = ref([])
 
-async function loadAlmacen() {
+async function loadLocations() {
   try {
-    // Sin filtro kind para obtener TODAS las ubicaciones del sistema
-    const data = await listAlmacen({ per_page: 500 })
-    rawAlmacen.value = normalizePayload(data)
-  } catch {
-    rawAlmacen.value = []
+    // Obtener TODAS las ubicaciones del sistema usando el endpoint correcto
+    const data = await listLocations({ per_page: 1000 })
+    console.log('Respuesta cruda del backend (locations):', data)
+
+    rawLocations.value = normalizePayload(data)
+    console.log(
+      'rawLocations después de normalizar:',
+      rawLocations.value.length,
+      rawLocations.value,
+    )
+
+    // Si normalizePayload no funcionó bien, intentar acceder directamente
+    if (rawLocations.value.length === 0 && data) {
+      console.log('Intentando acceso directo a data:', data)
+      if (Array.isArray(data)) {
+        rawLocations.value = data
+      } else if (data.data && Array.isArray(data.data)) {
+        rawLocations.value = data.data
+      } else if (data.items && Array.isArray(data.items)) {
+        rawLocations.value = data.items
+      } else if (data.locations && Array.isArray(data.locations)) {
+        rawLocations.value = data.locations
+      }
+      console.log(
+        'rawLocations después de acceso directo:',
+        rawLocations.value.length,
+        rawLocations.value,
+      )
+    }
+  } catch (error) {
+    console.error('Error cargando ubicaciones:', error)
+    rawLocations.value = []
+
+    if (!loadWarningsShown.value.locations) {
+      $q.notify({
+        type: 'warning',
+        message: 'No se pudo cargar ubicaciones. Puedes continuar y recargar después.',
+      })
+      loadWarningsShown.value.locations = true
+    }
   }
 }
 
@@ -1389,17 +1448,31 @@ function buildLocationsFromProducts() {
   const seen = new Set()
   const rawLocs = []
 
-  // Fuente primaria: rawAlmacen de /api/almacen (ubicaciones reales)
-  if (rawAlmacen.value.length > 0) {
-    for (const entry of rawAlmacen.value) {
-      const loc = entry.location
-      if (loc && !seen.has(loc.id)) {
-        seen.add(loc.id)
-        rawLocs.push(loc)
+  console.log('rawLocations.value:', rawLocations.value)
+
+  // Fuente primaria: rawLocations de /api/locations (todas las ubicaciones del sistema)
+  if (rawLocations.value.length > 0) {
+    for (const location of rawLocations.value) {
+      console.log('Procesando location:', location)
+
+      if (location && (location.id || location.location_id)) {
+        const locationId = location.id || location.location_id
+        if (!seen.has(locationId)) {
+          seen.add(locationId)
+          // Las ubicaciones ya vienen con la estructura correcta desde /api/locations
+          const normalizedLoc = {
+            id: locationId,
+            name: location.name || `Ubicacion ${locationId}`,
+            type: location.type || 'almacen',
+          }
+          rawLocs.push(normalizedLoc)
+          console.log('Ubicacion agregada:', normalizedLoc)
+        }
       }
     }
   } else {
-    // Fallback: almacen embebido en cada producto
+    // Fallback: almacen embebido en cada producto (menos eficiente)
+    console.log('Fallback: usando ubicaciones de productos')
     for (const product of rawProducts.value) {
       const loc = product.almacen?.location
       if (loc && !seen.has(loc.id)) {
@@ -1409,6 +1482,8 @@ function buildLocationsFromProducts() {
     }
   }
 
+  console.log('Total ubicaciones encontradas:', rawLocs.length, rawLocs)
+
   locationsRaw.value = rawLocs
   allLocations.value = rawLocs.map((loc) => ({
     id: loc.id,
@@ -1416,11 +1491,30 @@ function buildLocationsFromProducts() {
     type: loc.type || 'almacen',
   }))
   locationOptions.value = [...allLocations.value]
+
+  console.log(
+    'allLocations final:',
+    allLocations.value.length,
+    JSON.parse(JSON.stringify(allLocations.value)),
+  )
+
+  const returnOptions = allLocations.value.filter((loc) => loc.type !== 'cliente')
+  console.log(
+    'returnLocationOptions calculado:',
+    returnOptions.length,
+    JSON.parse(JSON.stringify(returnOptions)),
+  )
 }
 
-const returnLocationOptions = computed(() =>
-  allLocations.value.filter((loc) => loc.type !== 'cliente'),
-)
+const returnLocationOptions = computed(() => {
+  const filtered = allLocations.value.filter((loc) => loc.type !== 'cliente')
+  console.log(
+    'returnLocationOptions computed:',
+    filtered.length,
+    JSON.parse(JSON.stringify(filtered)),
+  )
+  return filtered
+})
 
 async function loadPersonnel() {
   personnelLoading.value = true
@@ -1596,33 +1690,21 @@ function getProductCurrentLocationId(productId) {
 }
 
 function getEffectiveLocationOptions() {
-  const map = new Map()
-
-  // Ubicaciones de rawAlmacen (todas las del sistema)
-  allLocations.value.forEach((loc) => {
-    map.set(Number(loc.id), loc)
-  })
-
-  // Ubicaciones adicionales del locationsRaw (por si hubiera más)
-  locationsRaw.value.forEach((loc) => {
-    const id = Number(loc.id)
-    if (id && !map.has(id)) {
-      map.set(id, { id, label: `${loc.name} (${loc.type || 'almacen'})` })
-    }
-  })
-
-  return Array.from(map.values())
+  // Usar directamente allLocations.value que ya tiene todas las ubicaciones cargadas desde /api/locations
+  return allLocations.value
 }
 
 function getDestinationLocationOptionsForProductRow(row) {
   const baseOptions = getEffectiveLocationOptions()
+  // Filtrar ubicaciones de clientes y la ubicación actual del producto
+  const filteredOptions = baseOptions.filter((option) => option.type !== 'cliente')
   const currentLocationId = getProductCurrentLocationId(row.product_id)
 
   if (!currentLocationId) {
-    return baseOptions
+    return filteredOptions
   }
 
-  return baseOptions.filter((option) => Number(option.id) !== currentLocationId)
+  return filteredOptions.filter((option) => Number(option.id) !== currentLocationId)
 }
 
 async function loadOpenRentals() {
@@ -1633,14 +1715,21 @@ async function loadOpenRentals() {
     const movements = normalizePayload(data)
 
     rentalReturnRows.value = movements
-      .filter((movement) => movement.type === 'renta' && !movement.date_return)
+      .filter(
+        (movement) =>
+          (movement.type === 'renta' || movement.type === 'mantenimiento') && !movement.date_return,
+      )
       .map((movement) => ({
         movement_id: movement.id,
+        movement_type: movement.type,
         product_label:
           movement.product?.serial_number || movement.product?.model
             ? `${movement.product?.brand || ''} ${movement.product?.model || ''} (${movement.product?.serial_number || movement.product_id})`.trim()
             : `Equipo ${movement.product_id || movement.id}`,
-        client_label: movement.client?.name || movement.client_id || '-',
+        client_label:
+          movement.type === 'mantenimiento'
+            ? 'N/A'
+            : movement.client?.name || movement.client_id || '-',
         date_out: movement.date_out ? String(movement.date_out).slice(0, 10) : '',
         location_id: null,
         current_counter_bw: null,
@@ -2082,10 +2171,15 @@ async function onDeleteProduct(id) {
   }
 }
 
+async function reloadLocations() {
+  await loadLocations()
+  buildLocationsFromProducts()
+}
+
 onMounted(async () => {
   await Promise.allSettled([
     loadProducts(),
-    loadAlmacen(),
+    loadLocations(),
     loadPersonnel(),
     loadClients(),
     loadOpenRentals(),
